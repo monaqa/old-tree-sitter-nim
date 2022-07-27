@@ -4,7 +4,11 @@
     "named": true,
     "subtypes": [
       {
-        "type": "literal",
+        "type": "expr_binop",
+        "named": true
+      },
+      {
+        "type": "primary",
         "named": true
       }
     ]
@@ -20,9 +24,112 @@
     ]
   },
   {
+    "type": "expr_binop",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expr_binop",
+            "named": true
+          },
+          {
+            "type": "primary",
+            "named": true
+          }
+        ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "op_amp",
+            "named": true
+          },
+          {
+            "type": "op_and",
+            "named": true
+          },
+          {
+            "type": "op_arrow",
+            "named": true
+          },
+          {
+            "type": "op_assign",
+            "named": true
+          },
+          {
+            "type": "op_cmp",
+            "named": true
+          },
+          {
+            "type": "op_colon",
+            "named": true
+          },
+          {
+            "type": "op_dollar",
+            "named": true
+          },
+          {
+            "type": "op_hat",
+            "named": true
+          },
+          {
+            "type": "op_mul",
+            "named": true
+          },
+          {
+            "type": "op_or",
+            "named": true
+          },
+          {
+            "type": "op_plus",
+            "named": true
+          },
+          {
+            "type": "op_slice",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expr_binop",
+            "named": true
+          },
+          {
+            "type": "primary",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "literal",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "primary",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "literal",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "routine",
@@ -195,6 +302,54 @@
   {
     "type": "if",
     "named": false
+  },
+  {
+    "type": "op_amp",
+    "named": true
+  },
+  {
+    "type": "op_and",
+    "named": true
+  },
+  {
+    "type": "op_arrow",
+    "named": true
+  },
+  {
+    "type": "op_assign",
+    "named": true
+  },
+  {
+    "type": "op_cmp",
+    "named": true
+  },
+  {
+    "type": "op_colon",
+    "named": true
+  },
+  {
+    "type": "op_dollar",
+    "named": true
+  },
+  {
+    "type": "op_hat",
+    "named": true
+  },
+  {
+    "type": "op_mul",
+    "named": true
+  },
+  {
+    "type": "op_or",
+    "named": true
+  },
+  {
+    "type": "op_plus",
+    "named": true
+  },
+  {
+    "type": "op_slice",
+    "named": true
   },
   {
     "type": "routine_converter",

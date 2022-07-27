@@ -1,10 +1,55 @@
+/// general functions
+
 function optseq(...args) {
     return optional(seq(...args))
 }
 
 function sep(rule, delimiter) {
-  return seq(rule, repeat(seq(delimiter, rule)));
+    return seq(rule, repeat(seq(delimiter, rule)));
 }
+
+/// precedence
+
+const PREC = {
+    arrow: 0,
+    assign: 1,
+    colon: 2,
+    or: 3,
+    and: 4,
+    cmp: 5,
+    slice: 6,
+    amp: 7,
+    plus: 8,
+    mul: 9,
+    dollar: 10,
+    hat: 10,
+};
+
+function binary_operator_table($) {
+    return {
+        arrow: [PREC.arrow, $.op_arrow, choice("->", "=>")],
+        assign: [PREC.assign, $.op_assign, choice("+=", "-=", "*=", "/=")],
+        colon: [PREC.colon, $.op_colon, /[@:?][-+*\/\\''!?^.|=%&$@~:]+/],
+        or: [PREC.or, $.op_or, choice("or", "xor")],
+        and: [PREC.and, $.op_and, choice("and")],
+        cmp: [PREC.cmp, $.op_cmp, choice(
+            "==", "<=", "<", ">=", ">", "in", "notin", "is", "isnot", "not", "of", "as", "from",
+            /[=<>!][-+*\/\\''!?^.|=%&$@~:]+/,
+        )],
+        slice: [PREC.slice, $.op_slice, choice(
+            "..",
+            /[.][-+*\/\\''!?^.|=%&$@~:]+/,
+        )],
+        amp: [PREC.amp, $.op_amp, choice("&", /[&][-+*\/\\''!?^.|=%&$@~:]+/,)],
+        plus: [PREC.plus, $.op_plus, choice("+", "-", /[-+~|][-+*\/\\''!?^.|=%&$@~:]+/,)],
+        mul: [PREC.mul, $.op_mul, choice(
+            "*", "/", "div", "mod", "shl", "shr", "%",
+            /[*/%\\][-+*\/\\''!?^.|=%&$@~:]+/,
+        )],
+        dollar: [PREC.dollar, $.op_dollar, choice(/[$][-+*\/\\''!?^.|=%&$@~:]+/,)],
+        hat: [PREC.hat, $.op_hat, choice(/\^[-+*\/\\''!?^.|=%&$@~:]+/,)],
+    }
+};
 
 const tokens = {
     _whitespace: /\s+/,
@@ -21,16 +66,32 @@ const tokens = {
 
 const tokensFunc = Object.fromEntries(
     Object.entries(tokens).map(
-      ([k, v]) => [k, (_) => v]
+        ([k, v]) => [k, (_) => v]
     )
-  )
+)
 
 /// special rules
 
 // Since tree-sitter does not support syntactic rules that match the empty string,
 // these rules have to be defined as functions.
+
 function opt_ind($) {
     return seq(optional($.comment), optional($._indent))
+}
+
+function opt_par($) {
+    return optional(choice($._indent, $._newline))
+}
+
+function section($, rule) {
+    return choice(
+        seq(optional($._comment), rule),
+        seq(
+            $._indent,
+            sep(choice(rule, $._comment), $._newline),
+            $._dedent,
+        )
+    )
 }
 
 module.exports = grammar({
@@ -70,7 +131,6 @@ module.exports = grammar({
         comma: $ => seq(",", optional($.comment)),
         semicolon: $ => seq(";", optional($.comment)),
         colon: $ => seq(":", optional($.comment)),
-        _opt_ind: $ => seq(optional($.comment), optional($._indent)),
 
         /// statements
 
@@ -106,7 +166,6 @@ module.exports = grammar({
 
         routine: $ => seq(
             $._routine_kind,
-            // $._opt_ind,
             opt_ind($),
             // $.ident_vis,
             // optional($.pattern),
@@ -171,8 +230,37 @@ module.exports = grammar({
         /// expressions
 
         _expr: $ => choice(
-            $.literal,
+            // $.expr_block,
+            // $.expr_if,
+            // $.expr_when,
+            // $.expr_case,
+            // $.expr_for,
+            // $.expr_try,
+            $._simple_expr,
         ),
+
+        _simple_expr: $ => choice(
+            $.expr_binop,
+            $.primary,
+        ),
+
+        expr_binop: $ => choice(
+            ...Object.entries(binary_operator_table($)).map(([key, [precedence, name, operator]]) =>
+                {
+                    const assoc = key == "hat" ? prec.right : prec.left;
+                    return assoc(
+                        precedence,
+                        seq(
+                            field("left", $._simple_expr),
+                            field("operator", alias(operator, name)),
+                            field("right", $._simple_expr),
+                        ),
+                    )
+                }
+            ),
+        ),
+
+        primary: $ => choice($.literal),
 
         literal: $ => choice("true", "false"),
 
