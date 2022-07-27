@@ -51,21 +51,90 @@ function binary_operator_table($) {
     }
 };
 
-const tokens = {
-    _whitespace: /\s+/,
-    comment: /#.*\n/,
 
-    routine_proc: "proc",
-    routine_method: "method",
-    routine_func: "func",
-    routine_iterator: "iterator",
-    routine_macro: "macro",
-    routine_template: "template",
-    routine_converter: "converter",
+function tokens() {
+
+    const identifier = /[A-Za-z\x80-\xff](_[0-9A-Za-z\x80-\xff])*/;
+
+    const _literal_int_hex = /-?0[xX][0-9a-fA-F](_?[0-9a-fA-F])*/;
+    const _literal_int_dec = /-?[0-9](_?[0-9])*/;
+    const _literal_int_oct = /-?0[o][0-7](_?[0-7])*/;
+    const _literal_int_bin = /-?0[bB][01](_?[01])*/;
+    const literal_int = token.immediate(choice(
+        _literal_int_hex,
+        _literal_int_dec,
+        _literal_int_oct,
+        _literal_int_bin,
+    ));
+    const _exponent = /[eE][+-]?[0-9](_?[0-9])*/;
+
+    const literal_float = token.immediate(seq(
+        /-?[0-9](_?[0-9])*/,
+        choice(
+            _exponent,
+            seq(/\.[0-9](_?[0-9])*/, optional(_exponent))
+        ))
+    );
+
+    const _float_body = token.immediate(choice(
+        seq(_literal_int_hex, "'"),
+        seq(
+            choice(
+                literal_float,
+                _literal_int_dec,
+                _literal_int_oct,
+                _literal_int_bin,
+            ),
+            optional("'"),
+        )
+    ));
+
+    return {
+        _whitespace: /\s+/,
+        comment: /#.*\n/,
+
+        routine_proc: "proc",
+        routine_method: "method",
+        routine_func: "func",
+        routine_iterator: "iterator",
+        routine_macro: "macro",
+        routine_template: "template",
+        routine_converter: "converter",
+
+        identifier,
+
+        literal_int,
+
+        literal_int8:  token.immediate(seq(literal_int, optional("'"), choice("i8", "I8"))),
+        literal_int16: token.immediate(seq(literal_int, optional("'"), choice("i16", "I16"))),
+        literal_int32: token.immediate(seq(literal_int, optional("'"), choice("i32", "I32"))),
+        literal_int64: token.immediate(seq(literal_int, optional("'"), choice("i64", "I64"))),
+
+        literal_uint:   token.immediate(seq(literal_int, optional("'"), choice("u", "U"))),
+        literal_uint8:  token.immediate(seq(literal_int, optional("'"), choice("u8", "U8"))),
+        literal_uint16: token.immediate(seq(literal_int, optional("'"), choice("u16", "U16"))),
+        literal_uint32: token.immediate(seq(literal_int, optional("'"), choice("u32", "U32"))),
+        literal_uint64: token.immediate(seq(literal_int, optional("'"), choice("u64", "U64"))),
+
+        literal_float,
+
+        literal_float32: token.immediate(seq(_float_body, choice("f32", "F32", "f", "F"))),
+        literal_float64: token.immediate(seq(_float_body, choice("f64", "F64", "d", "D"))),
+
+        literal_custom_numeric: token.immediate(seq(
+            choice(
+                literal_int,
+                literal_float,
+            ),
+            "'",
+            identifier,
+        ))
+
+    }
 }
 
-const tokensFunc = Object.fromEntries(
-    Object.entries(tokens).map(
+const grammarToken = Object.fromEntries(
+    Object.entries(tokens()).map(
         ([k, v]) => [k, (_) => v]
     )
 )
@@ -76,7 +145,7 @@ const tokensFunc = Object.fromEntries(
 // these rules have to be defined as functions.
 
 function opt_ind($) {
-    return seq(optional($.comment), optional($._indent))
+    return seq(repeat($.comment), optional($._indent))
 }
 
 function opt_par($) {
@@ -85,10 +154,10 @@ function opt_par($) {
 
 function section($, rule) {
     return choice(
-        seq(optional($._comment), rule),
+        seq(repeat($.comment), rule),
         seq(
             $._indent,
-            sep(choice(rule, $._comment), $._newline),
+            sep(choice(rule, $.comment), $._newline),
             $._dedent,
         )
     )
@@ -128,9 +197,9 @@ module.exports = grammar({
 
         /// tokens
 
-        comma: $ => seq(",", optional($.comment)),
-        semicolon: $ => seq(";", optional($.comment)),
-        colon: $ => seq(":", optional($.comment)),
+        comma: $ => seq(",", repeat($.comment)),
+        semicolon: $ => seq(";", repeat($.comment)),
+        colon: $ => seq(":", repeat($.comment)),
 
         /// statements
 
@@ -172,7 +241,7 @@ module.exports = grammar({
             // optional($.generic_param_list),
             // $.param_list_colon,
             // optional($.pragma),
-            // optseq("=", optional($.comment), $.stmt),
+            // optseq("=", repeat($.comment), $.stmt),
             // $.ind_and_comment
         ),
 
@@ -260,10 +329,81 @@ module.exports = grammar({
             ),
         ),
 
-        primary: $ => choice($.literal),
+        operator: $ => choice(
+            "static",
+            ...Object.entries(binary_operator_table($)).map(([_, [_prec, _name, operator]]) => operator),
+        ),
 
-        literal: $ => choice("true", "false"),
+        prefix_operator: $ => $.operator,
 
-        ... tokensFunc
+        operator_b: $ => choice(
+            ...Object.entries(binary_operator_table($)).map(([_, [_prec, _name, operator]]) => operator),
+        ),
+
+        primary: $ => choice(
+            // seq($.operator_b, $.primary, repeat($.primary_suffix)),
+            // $.decl_tuple,
+            // $.expr_routine,
+            // $.decl_enum,
+            // $.decl_object,
+            // $.decl_concept,
+            seq(alias("bind", $.primary_prefix_bind), $.primary),
+            seq(alias("var", $.primary_prefix_var), $.primary),
+            seq(alias("out", $.primary_prefix_out), $.primary),
+            seq(alias("ref", $.primary_prefix_ref), $.primary),
+            seq(alias("ptr", $.primary_prefix_ptr), $.primary),
+            seq(alias("distinct", $.primary_prefix_distinct), $.primary),
+            seq(repeat($.prefix_operator), $._identifier_or_literal, repeat($.primary_suffix)),
+        ),
+
+        _identifier_or_literal: $ => choice(
+            // $.symbol,
+            // $._generalized_string,
+            $._literal,
+            // $.parenthesized_expr,
+            // $.array_constructor,
+            // $.set_or_table_constructor,
+            // $.tuple_constructor,
+            // $.expr_cast,
+        ),
+
+        // decl_tuple: $ => choice(
+        //     seq("tuple", "[", "]"),
+        //     seq(
+        //         repeat($.comment),
+        //         $._indent,
+        //         sep($.identifier, $._newline),
+        //     )
+        // ),
+
+        primary_suffix: $ => choice(
+            seq("(", ")")
+        ),
+
+        _literal: $ => choice(
+            $.literal_int,
+            $.literal_int8,
+            $.literal_int16,
+            $.literal_int32,
+            $.literal_int64,
+            $.literal_uint,
+            $.literal_uint8,
+            $.literal_uint16,
+            $.literal_uint32,
+            $.literal_uint64,
+
+            $.literal_float,
+            $.literal_float32,
+            $.literal_float64,
+            // $.literal_str,
+            // $.literal_rawstr,
+            // $.literal_triplestr,
+            // $.literal_char,
+            // $.literal_custom_numeric,
+            // $.literal_nil,
+        ),
+
+
+        ... grammarToken
     }
 });
