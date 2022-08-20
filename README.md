@@ -1,4 +1,8 @@
-# tree-sitter-nim
+# [NOT MAINTAINED] tree-sitter-nim
+
+**This repository is no longer maintained.**
+
+Please use [aMOPel/tree-sitter-nim](https://github.com/aMOPel/tree-sitter-nim) instead.
 
 ## Grammar
 
